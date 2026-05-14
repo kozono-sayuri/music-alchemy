@@ -1,685 +1,807 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LyricForge · AI 歌詞生成器</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+TC:wght@300;400;500&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #050508;
-      --surface: #0d0d14;
-      --card: #12121e;
-      --border: #1e1e30;
-      --accent: #c8ff00;
-      --accent2: #ff3cac;
-      --accent3: #00d4ff;
-      --text: #e8e8f0;
-      --muted: #6060880;
-      --font-display: 'Bebas Neue', sans-serif;
-      --font-body: 'Noto Sans TC', sans-serif;
-      --font-mono: 'Space Mono', monospace;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-body);
-      min-height: 100vh;
-      overflow-x: hidden;
-      position: relative;
-    }
-
-    /* ── Background grid ── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(200,255,0,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(200,255,0,0.03) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    /* ── Glow blobs ── */
-    .blob {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(120px);
-      opacity: 0.18;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .blob-1 { width: 500px; height: 500px; background: var(--accent2); top: -150px; right: -100px; animation: drift 18s ease-in-out infinite alternate; }
-    .blob-2 { width: 400px; height: 400px; background: var(--accent3); bottom: -100px; left: -80px; animation: drift 22s ease-in-out infinite alternate-reverse; }
-    .blob-3 { width: 300px; height: 300px; background: var(--accent); top: 40%; left: 50%; transform: translateX(-50%); animation: drift 15s ease-in-out infinite alternate; }
-
-    @keyframes drift {
-      from { transform: translateY(0) scale(1); }
-      to   { transform: translateY(40px) scale(1.08); }
-    }
-
-    /* ── Layout ── */
-    .wrapper {
-      position: relative;
-      z-index: 1;
-      max-width: 820px;
-      margin: 0 auto;
-      padding: 60px 24px 80px;
-    }
-
-    /* ── Header ── */
-    header {
-      text-align: center;
-      margin-bottom: 56px;
-      animation: fadeUp 0.8s ease both;
-    }
-
-    .logo-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid var(--accent);
-      border-radius: 999px;
-      padding: 4px 16px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: 0.12em;
-      margin-bottom: 20px;
-      text-transform: uppercase;
-    }
-    .logo-badge span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: blink 1.4s step-end infinite; }
-
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-    h1 {
-      font-family: var(--font-display);
-      font-size: clamp(64px, 12vw, 110px);
-      line-height: 0.9;
-      letter-spacing: 0.04em;
-      background: linear-gradient(135deg, #fff 0%, var(--accent) 50%, var(--accent2) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 16px;
-    }
-
-    .subtitle {
-      font-size: 14px;
-      color: #888;
-      letter-spacing: 0.06em;
-      font-weight: 300;
-    }
-
-    /* ── Card ── */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 36px;
-      margin-bottom: 24px;
-      animation: fadeUp 0.8s ease both;
-      backdrop-filter: blur(8px);
-    }
-    .card:nth-child(2) { animation-delay: 0.1s; }
-    .card:nth-child(3) { animation-delay: 0.2s; }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .card-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .card-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-    /* ── API Key input ── */
-    .api-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .input-wrap {
-      position: relative;
-      flex: 1;
-    }
-
-    input[type="text"], input[type="password"], textarea, select {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-family: var(--font-mono);
-      font-size: 13px;
-      padding: 12px 16px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      -webkit-appearance: none;
-    }
-
-    input:focus, textarea:focus, select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(200,255,0,0.08);
-    }
-
-    select option { background: var(--surface); }
-
-    textarea { resize: vertical; min-height: 90px; line-height: 1.6; font-family: var(--font-body); font-size: 14px; }
-
-    .toggle-vis {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: #555;
-      cursor: pointer;
-      font-size: 16px;
-      padding: 4px;
-      transition: color 0.2s;
-    }
-    .toggle-vis:hover { color: var(--accent); }
-    input[type="password"] { padding-right: 44px; }
-
-    /* ── Grid fields ── */
-    .fields-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    @media(max-width:560px){ .fields-grid { grid-template-columns: 1fr; } }
-
-    .field-group { display: flex; flex-direction: column; gap: 8px; }
-    .field-group label { font-size: 12px; color: #777; letter-spacing: 0.05em; }
-
-    /* ── Mood pills ── */
-    .mood-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-
-    .mood-pill {
-      cursor: pointer;
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      font-size: 12px;
-      color: #888;
-      background: transparent;
-      transition: all 0.2s;
-      font-family: var(--font-body);
-    }
-    .mood-pill:hover { border-color: var(--accent); color: var(--accent); }
-    .mood-pill.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 500; }
-
-    /* ── Prompt ── */
-    .prompt-wrap { margin-bottom: 8px; }
-
-    .char-count { font-size: 11px; color: #555; text-align: right; margin-top: 6px; font-family: var(--font-mono); }
-
-    /* ── Generate button ── */
-    .btn-generate {
-      width: 100%;
-      padding: 16px;
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: 12px;
-      font-family: var(--font-display);
-      font-size: 22px;
-      letter-spacing: 0.08em;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.15s, box-shadow 0.2s;
-      margin-top: 8px;
-    }
-    .btn-generate:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(200,255,0,0.25);
-    }
-    .btn-generate:active:not(:disabled) { transform: translateY(0); }
-    .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .btn-generate .shimmer {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.35) 50%, transparent 60%);
-      transform: translateX(-100%);
-    }
-    .btn-generate:hover .shimmer { animation: shimmer 0.6s ease forwards; }
-    @keyframes shimmer { to { transform: translateX(200%); } }
-
-    /* ── Output ── */
-    #output-card { display: none; }
-    #output-card.visible { display: block; animation: fadeUp 0.5s ease both; }
-
-    .output-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .output-meta { display: flex; gap: 8px; flex-wrap: wrap; }
-    .tag {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      padding: 3px 10px;
-      border-radius: 999px;
-      background: rgba(200,255,0,0.1);
-      color: var(--accent);
-      border: 1px solid rgba(200,255,0,0.2);
-    }
-    .tag.pink { background: rgba(255,60,172,0.1); color: var(--accent2); border-color: rgba(255,60,172,0.2); }
-    .tag.blue { background: rgba(0,212,255,0.1); color: var(--accent3); border-color: rgba(0,212,255,0.2); }
-
-    .btn-copy {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: #888;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-copy.copied { border-color: var(--accent); color: var(--accent); }
-
-    .lyrics-display {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px;
-      font-family: var(--font-body);
-      font-size: 15px;
-      line-height: 2;
-      white-space: pre-wrap;
-      color: #d0d0e8;
-      min-height: 200px;
-      position: relative;
-    }
-
-    .lyrics-display .section-tag {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--accent2);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-      opacity: 0.7;
-    }
-
-    /* ── Loading state ── */
-    .loading-overlay {
-      display: none;
-      position: absolute;
-      inset: 0;
-      background: rgba(5,5,8,0.85);
-      border-radius: 12px;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 16px;
-      backdrop-filter: blur(4px);
-    }
-    .loading-overlay.active { display: flex; }
-
-    .spinner {
-      width: 40px; height: 40px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-text {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--accent);
-      letter-spacing: 0.1em;
-    }
-
-    /* ── Error ── */
-    .error-msg {
-      display: none;
-      background: rgba(255,60,172,0.08);
-      border: 1px solid rgba(255,60,172,0.25);
-      border-radius: 10px;
-      padding: 12px 16px;
-      font-size: 13px;
-      color: var(--accent2);
-      margin-top: 12px;
-      font-family: var(--font-mono);
-    }
-    .error-msg.visible { display: block; }
-
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      margin-top: 60px;
-      color: #333;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      letter-spacing: 0.08em;
-    }
-    footer a { color: #555; text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>音樂煉金術 · Suno 專業歌曲生成器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0a0a0c;--surface:#111116;--card:#16161e;--border:#22222e;--border-light:#2a2a38;
+  --gold:#c9a96e;--gold-light:#e8c98a;--gold-dim:rgba(201,169,110,0.12);
+  --red:#c94a4a;--teal:#4a9a8c;
+  --text:#dddde8;--text-dim:#888898;--text-muted:#44445a;
+  --sidebar-w:260px;
+  --font-serif:'Noto Serif TC',serif;--font-sans:'Noto Sans TC',sans-serif;--font-mono:'DM Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--gold);}
+.app{display:flex;min-height:100vh;}
+.sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto;}
+.sidebar-logo{padding:24px 20px 18px;border-bottom:1px solid var(--border);}
+.logo-mark{font-size:24px;margin-bottom:6px;}
+.logo-title{font-family:var(--font-serif);font-size:16px;font-weight:700;letter-spacing:0.04em;background:linear-gradient(135deg,var(--gold-light),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-sub{font-size:9px;color:var(--text-muted);letter-spacing:0.14em;margin-top:3px;font-family:var(--font-mono);text-transform:uppercase;}
+.sidebar-nav{flex:1;padding:12px 0;}
+.nav-group-label{font-size:9px;letter-spacing:0.18em;color:var(--text-muted);text-transform:uppercase;font-family:var(--font-mono);padding:14px 20px 5px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 20px;cursor:pointer;font-size:12.5px;color:var(--text-dim);transition:all 0.18s;border-left:2px solid transparent;}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.025);}
+.nav-item.active{color:var(--gold);border-left-color:var(--gold);background:var(--gold-dim);}
+.nav-item.disabled{opacity:0.3;cursor:not-allowed;pointer-events:none;}
+.nav-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;font-size:9px;font-family:var(--font-mono);background:var(--gold-dim);color:var(--gold);padding:2px 7px;border-radius:999px;}
+.sidebar-bottom{padding:14px;border-top:1px solid var(--border);}
+.api-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+.api-dot{width:6px;height:6px;border-radius:50%;background:var(--text-muted);flex-shrink:0;}
+.api-dot.ok{background:var(--teal);box-shadow:0 0 5px var(--teal);}
+.api-dot.err{background:var(--red);}
+.api-status-text{font-size:10px;color:var(--text-muted);font-family:var(--font-mono);}
+.api-wrap{position:relative;}
+.api-wrap input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 30px 7px 10px;font-size:11px;font-family:var(--font-mono);color:var(--text-dim);outline:none;transition:border-color 0.2s;}
+.api-wrap input:focus{border-color:var(--gold);}
+.api-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;}
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;}
+.topbar{padding:18px 36px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(10,10,12,0.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
+.topbar-left h2{font-family:var(--font-serif);font-size:18px;font-weight:600;}
+.topbar-left p{font-size:11px;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono);}
+.step-indicator{display:flex;align-items:center;gap:6px;}
+.step-pip{width:7px;height:7px;border-radius:50%;background:var(--border-light);transition:all 0.3s;}
+.step-pip.done{background:var(--teal);}
+.step-pip.active{background:var(--gold);box-shadow:0 0 7px var(--gold);}
+.content{padding:28px 36px 60px;max-width:860px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;animation:fadeUp 0.35s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.card-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.card-num{width:26px;height:26px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--font-mono);color:var(--gold);flex-shrink:0;}
+.card-title{font-family:var(--font-serif);font-size:15px;font-weight:600;}
+.card-hint{font-size:10px;color:var(--text-muted);margin-left:auto;font-family:var(--font-mono);}
+.field{margin-bottom:14px;}
+.field-label{font-size:11px;color:var(--text-dim);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.opt{color:var(--text-muted);font-size:10px;}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;-webkit-appearance:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,169,110,0.07);}
+textarea{resize:vertical;min-height:72px;line-height:1.7;}
+select option{background:var(--surface);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:580px){.two-col{grid-template-columns:1fr;}}
+.pills{display:flex;flex-wrap:wrap;gap:7px;}
+.pill{padding:5px 13px;border-radius:999px;border:1px solid var(--border);background:transparent;font-size:12px;color:var(--text-dim);cursor:pointer;transition:all 0.15s;font-family:var(--font-sans);}
+.pill:hover{border-color:var(--border-light);color:var(--text);}
+.pill.on{background:var(--gold-dim);border-color:var(--gold);color:var(--gold);}
+.check-list{display:flex;flex-direction:column;gap:5px;}
+.check-item{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border-radius:7px;border:1px solid var(--border);background:var(--bg);cursor:pointer;transition:all 0.14s;}
+.check-item:hover{border-color:var(--border-light);}
+.check-item.on{border-color:var(--gold);background:var(--gold-dim);}
+.check-box{width:15px;height:15px;border-radius:3px;border:1px solid var(--border-light);background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-size:9px;transition:all 0.14s;}
+.check-item.on .check-box{background:var(--gold);border-color:var(--gold);color:#000;}
+.check-name{font-size:12px;font-weight:500;}
+.check-desc{font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.5;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);}
+.toggle-row:last-child{border-bottom:none;}
+.toggle-info .tl{font-size:13px;}
+.toggle-info .ts{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.switch{position:relative;width:38px;height:20px;flex-shrink:0;}
+.switch input{opacity:0;width:0;height:0;}
+.track{position:absolute;inset:0;border-radius:999px;background:var(--border-light);cursor:pointer;transition:background 0.2s;}
+.track::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:var(--text-muted);top:3px;left:3px;transition:all 0.2s;}
+.switch input:checked+.track{background:var(--gold);}
+.switch input:checked+.track::after{transform:translateX(18px);background:#000;}
+.detail-panel{background:var(--surface);border:1px solid var(--border-light);border-radius:10px;padding:16px;margin-top:10px;animation:fadeUp 0.25s ease both;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.spec{background:var(--bg);border-radius:7px;padding:9px 11px;}
+.spec-k{font-size:9px;color:var(--gold);font-family:var(--font-mono);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;}
+.spec-v{font-size:11px;color:var(--text-dim);line-height:1.5;}
+.btn-gen{width:100%;padding:15px;background:linear-gradient(135deg,var(--gold),#a87840);color:#0a0a0c;border:none;border-radius:11px;font-family:var(--font-serif);font-size:17px;font-weight:700;letter-spacing:0.06em;cursor:pointer;transition:transform 0.14s,box-shadow 0.2s,opacity 0.2s;position:relative;overflow:hidden;margin-top:6px;}
+.btn-gen:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 28px rgba(201,169,110,0.28);}
+.btn-gen:disabled{opacity:0.4;cursor:not-allowed;}
+.shimmer{position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.28) 50%,transparent 60%);transform:translateX(-100%);}
+.btn-gen:hover:not(:disabled) .shimmer{animation:shim 0.65s ease forwards;}
+@keyframes shim{to{transform:translateX(200%);}}
+.nav-btns{display:flex;justify-content:space-between;margin-top:10px;}
+.btn-sm{padding:7px 14px;border-radius:7px;font-size:12px;font-family:var(--font-mono);border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;transition:all 0.2s;}
+.btn-sm:hover{border-color:var(--gold);color:var(--gold);}
+.btn-sm.accent{background:var(--gold-dim);border-color:var(--gold);color:var(--gold);}
+.err-bar{display:none;background:rgba(201,74,74,0.1);border:1px solid rgba(201,74,74,0.3);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--red);font-family:var(--font-mono);margin-top:10px;}
+.err-bar.show{display:block;}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;}
+.tab{padding:10px 18px;font-size:11px;font-family:var(--font-mono);color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.tab-panel{display:none;padding:20px;}
+.tab-panel.active{display:block;animation:fadeUp 0.25s ease;}
+.out-box{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:18px;font-size:13px;line-height:1.95;color:var(--text-dim);white-space:pre-wrap;min-height:180px;font-family:var(--font-mono);}
+.out-actions{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;}
+.mv-list{display:flex;flex-direction:column;gap:10px;}
+.mv-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:14px;cursor:pointer;transition:all 0.18s;}
+.mv-card:hover{border-color:var(--border-light);}
+.mv-card.on{border-color:var(--gold);background:var(--gold-dim);}
+.mv-card-head{display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+.mv-num{width:22px;height:22px;border-radius:50%;background:var(--border-light);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--font-mono);color:var(--text-muted);}
+.mv-card.on .mv-num{background:var(--gold-dim);color:var(--gold);}
+.mv-title{font-size:13px;font-weight:500;}
+.mv-desc{font-size:12px;color:var(--text-muted);line-height:1.6;}
+.loading{display:none;position:fixed;inset:0;background:rgba(10,10,12,0.92);backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.loading.show{display:flex;}
+.spinner{width:44px;height:44px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--gold);animation:spin 0.85s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-msg{font-family:var(--font-mono);font-size:12px;color:var(--gold);letter-spacing:0.12em;}
+.loading-sub{font-size:11px;color:var(--text-muted);}
+.divider{height:1px;background:var(--border);margin:14px 0;}
+.genre-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px;margin-bottom:14px;}
+.genre-card{padding:13px;border-radius:9px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.18s;text-align:center;}
+.genre-card:hover{border-color:var(--border-light);}
+.genre-card.on{border-color:var(--gold);background:var(--gold-dim);}
+.g-icon{font-size:20px;margin-bottom:5px;}
+.g-name{font-size:11px;font-weight:500;}
+.vocal-grid,.room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;}
+.v-card,.r-card{padding:13px;border-radius:9px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.18s;}
+.v-card:hover,.r-card:hover{border-color:var(--border-light);}
+.v-card.on{border-color:var(--gold);background:var(--gold-dim);}
+.r-card.on{border-color:var(--teal);background:rgba(74,154,140,0.1);}
+.v-icon,.r-icon{font-size:18px;margin-bottom:6px;}
+.v-name,.r-name{font-size:11px;font-weight:500;margin-bottom:3px;}
+.v-vibe,.r-rev{font-size:10px;color:var(--text-muted);font-family:var(--font-mono);}
+</style>
 </head>
 <body>
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
-  <div class="blob blob-3"></div>
-
-  <div class="wrapper">
-    <!-- Header -->
-    <header>
-      <div class="logo-badge"><span></span> AI POWERED</div>
-      <h1>LYRIC<br>FORGE</h1>
-      <p class="subtitle">用人工智慧，鍛造你的每一首歌</p>
-    </header>
-
-    <!-- API Key -->
-    <div class="card">
-      <div class="card-label">API 金鑰設定</div>
-      <div class="api-row">
-        <div class="input-wrap">
-          <input type="password" id="apiKey" placeholder="貼上你的 Anthropic API Key（sk-ant-...）" autocomplete="off" />
-          <button class="toggle-vis" onclick="toggleApiVis()" title="顯示/隱藏">👁</button>
-        </div>
-      </div>
-      <p style="font-size:11px;color:#444;margin-top:10px;font-family:var(--font-mono);">
-        金鑰僅存於瀏覽器，不會上傳任何伺服器。
-        <a href="https://console.anthropic.com/account/keys" target="_blank" style="color:#666;text-decoration:underline;">取得 API Key →</a>
-      </p>
-    </div>
-
-    <!-- Controls -->
-    <div class="card">
-      <div class="card-label">歌曲設定</div>
-
-      <div class="fields-grid">
-        <div class="field-group">
-          <label>語言</label>
-          <select id="lang">
-            <option value="zh-TW">繁體中文</option>
-            <option value="zh-CN">簡體中文</option>
-            <option value="en">English</option>
-            <option value="ja">日本語</option>
-            <option value="mixed">中英混搭</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label>曲風</label>
-          <select id="genre">
-            <option value="pop">流行 Pop</option>
-            <option value="rnb">R&B / Soul</option>
-            <option value="hiphop">嘻哈 Hip-hop</option>
-            <option value="rock">搖滾 Rock</option>
-            <option value="ballad">抒情 Ballad</option>
-            <option value="edm">EDM / Electronic</option>
-            <option value="folk">民謠 Folk</option>
-            <option value="jazz">爵士 Jazz</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label>段落結構</label>
-          <select id="structure">
-            <option value="verse-chorus">主歌 + 副歌</option>
-            <option value="verse-prechorus-chorus">主歌 + 預副歌 + 副歌</option>
-            <option value="verse-chorus-bridge">主歌 + 副歌 + 橋段</option>
-            <option value="full">完整結構（含所有段落）</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label>創意程度</label>
-          <select id="temperature">
-            <option value="0.6">穩定保守</option>
-            <option value="0.85" selected>平衡</option>
-            <option value="1.0">大膽創意</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-group" style="margin-bottom:16px;">
-        <label>情緒氛圍（可多選）</label>
-        <div class="mood-row">
-          <button class="mood-pill" onclick="toggleMood(this)">💔 心碎</button>
-          <button class="mood-pill active" onclick="toggleMood(this)">✨ 希望</button>
-          <button class="mood-pill" onclick="toggleMood(this)">🔥 熱血</button>
-          <button class="mood-pill" onclick="toggleMood(this)">🌙 思念</button>
-          <button class="mood-pill" onclick="toggleMood(this)">🎉 快樂</button>
-          <button class="mood-pill" onclick="toggleMood(this)">😤 憤怒</button>
-          <button class="mood-pill" onclick="toggleMood(this)">🌊 平靜</button>
-          <button class="mood-pill" onclick="toggleMood(this)">💫 夢幻</button>
-          <button class="mood-pill" onclick="toggleMood(this)">🌧 憂鬱</button>
-          <button class="mood-pill" onclick="toggleMood(this)">💪 勵志</button>
-        </div>
-      </div>
-
-      <div class="field-group prompt-wrap">
-        <label>主題描述（選填，越詳細越好）</label>
-        <textarea id="prompt" placeholder="例：關於一段異地戀，兩個人因為距離漸漸疏遠，但心裡仍然放不下對方..." oninput="updateChar()"></textarea>
-        <div class="char-count"><span id="charCount">0</span> / 500</div>
-      </div>
-
-      <button class="btn-generate" onclick="generate()" id="genBtn">
-        <div class="shimmer"></div>
-        ⚡ 生成歌詞
-      </button>
-      <div class="error-msg" id="errorMsg"></div>
-    </div>
-
-    <!-- Output -->
-    <div class="card" id="output-card">
-      <div class="output-header">
-        <div class="output-meta">
-          <span class="tag" id="tagLang"></span>
-          <span class="tag pink" id="tagGenre"></span>
-          <span class="tag blue" id="tagMood"></span>
-        </div>
-        <button class="btn-copy" id="copyBtn" onclick="copyLyrics()">
-          📋 複製歌詞
-        </button>
-      </div>
-      <div class="lyrics-display" id="lyricsDisplay">
-        <div class="loading-overlay active" id="loadingOverlay">
-          <div class="spinner"></div>
-          <div class="loading-text">GENERATING LYRICS...</div>
-        </div>
-      </div>
-    </div>
-
-    <footer>
-      Built with Claude API &nbsp;·&nbsp;
-      <a href="https://console.anthropic.com" target="_blank">Anthropic Console</a>
-    </footer>
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-msg" id="loadingMsg">召喚音樂靈感中...</div>
+  <div class="loading-sub">Claude 正在為你創作，請稍候</div>
+</div>
+<div class="app">
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">🎼</div>
+    <div class="logo-title">音樂煉金術</div>
+    <div class="logo-sub">Suno Professional Generator</div>
   </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group-label">創作流程</div>
+    <div class="nav-item active" data-s="1" onclick="goStage(1)"><span class="nav-icon">🎸</span>曲風設定<span class="nav-badge">S1</span></div>
+    <div class="nav-item disabled" data-s="2" onclick="goStage(2)"><span class="nav-icon">🎚️</span>製作設定<span class="nav-badge">S2</span></div>
+    <div class="nav-item disabled" data-s="3" onclick="goStage(3)"><span class="nav-icon">✍️</span>歌詞設定<span class="nav-badge">S3</span></div>
+    <div class="nav-group-label">輸出結果</div>
+    <div class="nav-item disabled" data-s="result" onclick="goStage('result')"><span class="nav-icon">✨</span>生成結果</div>
+    <div class="nav-item disabled" data-s="mv" onclick="goStage('mv')"><span class="nav-icon">🎬</span>MV 分鏡</div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="api-row">
+      <div class="api-dot" id="apiDot"></div>
+      <div class="api-status-text" id="apiLabel">未設定 API Key</div>
+    </div>
+    <div class="api-wrap">
+      <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="checkKey()"/>
+      <button class="api-eye" onclick="toggleEye()">👁</button>
+    </div>
+  </div>
+</aside>
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left"><h2 id="tbTitle">曲風設定</h2><p id="tbSub">選擇音樂風格基底</p></div>
+    <div class="step-indicator">
+      <div class="step-pip active" id="p1"></div>
+      <div class="step-pip" id="p2"></div>
+      <div class="step-pip" id="p3"></div>
+    </div>
+  </div>
+  <div class="content">
 
-  <script>
-    // ── Mood selection ──
-    function toggleMood(el) {
-      el.classList.toggle('active');
-    }
+    <!-- S1 -->
+    <div id="s1">
+      <div class="card">
+        <div class="card-head"><div class="card-num">1</div><div class="card-title">選擇曲風</div><div class="card-hint">可多選</div></div>
+        <div class="genre-grid" id="genreGrid"></div>
+      </div>
+      <div id="genreDetails"></div>
+      <div class="card" id="mixCard" style="display:none;">
+        <div class="card-head"><div class="card-num">✦</div><div class="card-title">混搭說明</div></div>
+        <textarea id="mixDesc" placeholder="例：以探戈的節奏為骨架，融入爵士的即興自由感..."></textarea>
+      </div>
+      <div class="nav-btns"><div></div><button class="btn-sm accent" onclick="goStage(2)">下一步：製作設定 →</button></div>
+    </div>
 
-    function getSelectedMoods() {
-      return [...document.querySelectorAll('.mood-pill.active')].map(el => el.textContent.trim());
-    }
+    <!-- S2 -->
+    <div id="s2" style="display:none;">
+      <div class="card">
+        <div class="card-head"><div class="card-num">2</div><div class="card-title">曲目結構</div></div>
+        <div class="field"><div class="field-label">段落結構</div><div class="pills" id="structPills"></div></div>
+        <div id="customStructWrap" style="display:none;margin-top:10px;">
+          <input type="text" id="customStruct" placeholder="自訂段落，逗號分隔"/>
+        </div>
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="field"><div class="field-label">純音樂段數量</div><input type="number" id="instrCount" min="0" max="5" value="0"/></div>
+          <div class="field"><div class="field-label">BPM <span class="opt">選填</span></div><input type="text" id="bpm" placeholder="例：108 BPM"/></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">3</div><div class="card-title">特殊元素</div></div>
+        <div class="toggle-row">
+          <div class="toggle-info"><div class="tl">加入口白</div><div class="ts">在歌曲中穿插說白、旁白</div></div>
+          <label class="switch"><input type="checkbox" id="hasNarr" onchange="tog('narrField')"><div class="track"></div></label>
+        </div>
+        <div id="narrField" style="display:none;padding-top:10px;">
+          <textarea id="narrDesc" placeholder="例：開場時一段如詩的獨白，低沉磁性的嗓音..."></textarea>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info"><div class="tl">參考旋律</div><div class="ts">參考某首歌的旋律走向</div></div>
+          <label class="switch"><input type="checkbox" id="hasRef" onchange="tog('refField')"><div class="track"></div></label>
+        </div>
+        <div id="refField" style="display:none;padding-top:10px;">
+          <input type="text" id="refSong" placeholder="例：Piazzolla — Libertango"/>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">4</div><div class="card-title">人聲演唱風格</div><div class="card-hint">可多選</div></div>
+        <div class="vocal-grid" id="vocalGrid"></div>
+        <div id="vocalDetails"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">5</div><div class="card-title">人聲排除設定</div><div class="card-hint">告訴 Suno 不要什麼</div></div>
+        <div class="field-label" style="margin-bottom:6px;">排除的人聲特質 <span class="opt">選填</span></div>
+        <textarea id="voiceExclusions" placeholder="例：no belting, no powerful mixed belt, no piercing highs, no childish voice, no over-autotune, no excessive vibrato..."></textarea>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">6</div><div class="card-title">錄音空間感</div></div>
+        <div class="room-grid" id="roomGrid"></div>
+        <div id="roomDetail"></div>
+      </div>
+      <div class="nav-btns">
+        <button class="btn-sm" onclick="goStage(1)">← 上一步</button>
+        <button class="btn-sm accent" onclick="goStage(3)">下一步：歌詞設定 →</button>
+      </div>
+    </div>
 
-    // ── Char count ──
-    function updateChar() {
-      const len = document.getElementById('prompt').value.length;
-      document.getElementById('charCount').textContent = len;
-    }
+    <!-- S3 -->
+    <div id="s3" style="display:none;">
+      <div class="card">
+        <div class="card-head"><div class="card-num">7</div><div class="card-title">歌詞核心設定</div></div>
+        <div class="field"><div class="field-label">歌詞語言</div>
+          <div class="pills" id="langPills">
+            <div class="pill on" data-v="繁體中文" onclick="selPill(this,'langPills')">繁體中文</div>
+            <div class="pill" data-v="簡體中文" onclick="selPill(this,'langPills')">簡體中文</div>
+            <div class="pill" data-v="English" onclick="selPill(this,'langPills')">English</div>
+            <div class="pill" data-v="日本語" onclick="selPill(this,'langPills')">日本語</div>
+            <div class="pill" data-v="台語（閩南語）" onclick="selPill(this,'langPills')">台語</div>
+            <div class="pill" data-v="中英混搭" onclick="selPill(this,'langPills')">中英混搭</div>
+          </div>
+        </div>
+        <div class="field"><div class="field-label">歌曲名稱 <span class="opt">選填</span></div>
+          <input type="text" id="songTitle" placeholder="例：紅裙"/></div>
+        <div class="field"><div class="field-label">歌曲主題</div>
+          <textarea id="theme" placeholder="例：一段無疾而終的戀情，兩個人都知道彼此相愛，卻因為各自的傷而無法向前..."></textarea></div>
+        <div class="two-col">
+          <div class="field"><div class="field-label">氛圍 <span class="opt">選填</span></div>
+            <textarea id="vibe" placeholder="例：像深夜的雨，帶有沉重卻溫柔的矛盾感..." style="min-height:60px;"></textarea></div>
+          <div class="field"><div class="field-label">Hook 關鍵句 <span class="opt">選填</span></div>
+            <textarea id="hook" placeholder="例：紅裙不回頭" style="min-height:60px;"></textarea></div>
+        </div>
+        <div class="field"><div class="field-label">意象詞彙 <span class="opt">選填</span></div>
+          <input type="text" id="imagery" placeholder="例：月台、候鳥、玻璃心"/></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">8</div><div class="card-title">合聲與和聲</div></div>
+        <div class="toggle-row">
+          <div class="toggle-info"><div class="tl">背景合唱</div><div class="ts">副歌或橋段加入合唱聲部</div></div>
+          <label class="switch"><input type="checkbox" id="hasChorus"><div class="track"></div></label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info"><div class="tl">Call &amp; Response 對唱</div><div class="ts">主唱與和聲之間的問答呼應</div></div>
+          <label class="switch"><input type="checkbox" id="hasCR"><div class="track"></div></label>
+        </div>
+        <div class="field" style="margin-top:12px;"><div class="field-label">和聲設計說明 <span class="opt">選填</span></div>
+          <textarea id="harmonyDesc" placeholder="例：副歌時三部和聲，如厚重的布幕慢慢拉開..." style="min-height:55px;"></textarea></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">9</div><div class="card-title">補充指示</div></div>
+        <textarea id="extra" placeholder="例：請避免過於直白的表達，多用隱喻。副歌要朗朗上口..."></textarea>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-num">✦</div><div class="card-title">生成選項</div></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">Suno Style Prompt</div><div class="ts">可直接貼入 Suno 的英文風格提示詞</div></div>
+          <label class="switch"><input type="checkbox" id="genStyle" checked><div class="track"></div></label></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">人聲角色定義標籤</div><div class="ts">[Lead vocal] 與 [Voice exclusions] 元標籤</div></div>
+          <label class="switch"><input type="checkbox" id="genVocalTag" checked><div class="track"></div></label></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">編排說明</div><div class="ts">各段落樂器分工與製作建議</div></div>
+          <label class="switch"><input type="checkbox" id="genArr" checked><div class="track"></div></label></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">對照翻譯</div><div class="ts">中英對照</div></div>
+          <label class="switch"><input type="checkbox" id="genTrans" checked><div class="track"></div></label></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">封面設計提示詞</div><div class="ts">適用 Midjourney / SD 的英文提示詞</div></div>
+          <label class="switch"><input type="checkbox" id="genCover" checked><div class="track"></div></label></div>
+        <div class="toggle-row"><div class="toggle-info"><div class="tl">三個 MV 腳本方向</div><div class="ts">選擇後可進入分鏡設計階段</div></div>
+          <label class="switch"><input type="checkbox" id="genMV" checked><div class="track"></div></label></div>
+      </div>
+      <button class="btn-gen" onclick="generate()" id="genBtn"><div class="shimmer"></div>⚡ 開始生成</button>
+      <div class="err-bar" id="errBar"></div>
+      <div class="nav-btns" style="margin-top:10px;"><button class="btn-sm" onclick="goStage(2)">← 上一步</button><div></div></div>
+    </div>
 
-    // ── API key visibility ──
-    function toggleApiVis() {
-      const input = document.getElementById('apiKey');
-      input.type = input.type === 'password' ? 'text' : 'password';
-    }
+    <!-- RESULT -->
+    <div id="sResult" style="display:none;">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="tab-bar">
+          <div class="tab active" data-tab="suno" onclick="switchTab(this)">🎵 Suno 完整格式</div>
+          <div class="tab" data-tab="lyrics" onclick="switchTab(this)">歌詞</div>
+          <div class="tab" data-tab="style" onclick="switchTab(this)" id="tabStyle">Style Prompt</div>
+          <div class="tab" data-tab="arr" onclick="switchTab(this)" id="tabArr">編排說明</div>
+          <div class="tab" data-tab="trans" onclick="switchTab(this)" id="tabTrans">對照翻譯</div>
+          <div class="tab" data-tab="cover" onclick="switchTab(this)" id="tabCover">封面提示詞</div>
+        </div>
+        <div class="tab-panel active" id="panel-suno">
+          <div class="out-box" id="outSuno"></div>
+          <div class="out-actions"><button class="btn-sm accent" onclick="cp('outSuno')">📋 複製 Suno 完整格式</button></div>
+        </div>
+        <div class="tab-panel" id="panel-lyrics">
+          <div class="out-box" id="outLyrics"></div>
+          <div class="out-actions"><button class="btn-sm" onclick="cp('outLyrics')">📋 複製</button></div>
+        </div>
+        <div class="tab-panel" id="panel-style">
+          <div class="out-box" id="outStyle"></div>
+          <div class="out-actions"><button class="btn-sm" onclick="cp('outStyle')">📋 複製</button></div>
+        </div>
+        <div class="tab-panel" id="panel-arr">
+          <div class="out-box" id="outArr"></div>
+          <div class="out-actions"><button class="btn-sm" onclick="cp('outArr')">📋 複製</button></div>
+        </div>
+        <div class="tab-panel" id="panel-trans">
+          <div class="out-box" id="outTrans"></div>
+          <div class="out-actions"><button class="btn-sm" onclick="cp('outTrans')">📋 複製</button></div>
+        </div>
+        <div class="tab-panel" id="panel-cover">
+          <div class="out-box" id="outCover"></div>
+          <div class="out-actions"><button class="btn-sm" onclick="cp('outCover')">📋 複製</button></div>
+        </div>
+      </div>
+      <div id="mvSection" style="display:none;">
+        <div class="card">
+          <div class="card-head"><div class="card-num">🎬</div><div class="card-title">三個 MV 腳本方向</div><div class="card-hint">選一個進入分鏡</div></div>
+          <div class="mv-list" id="mvList"></div>
+          <div style="margin-top:12px;"><button class="btn-sm accent" id="btnMV" onclick="goMV()" disabled>進入 MV 分鏡設計 →</button></div>
+        </div>
+      </div>
+      <div class="nav-btns"><button class="btn-sm" onclick="goStage(3)">← 返回修改</button><div></div></div>
+    </div>
 
-    // ── Copy lyrics ──
-    function copyLyrics() {
-      const text = document.getElementById('lyricsDisplay').innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = '✅ 已複製！';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = '📋 複製歌詞';
-          btn.classList.remove('copied');
-        }, 2000);
-      });
-    }
+    <!-- MV -->
+    <div id="sMV" style="display:none;">
+      <div class="card">
+        <div class="card-head"><div class="card-num">🎬</div><div class="card-title" id="mvCardTitle">MV 腳本細化</div></div>
+        <div class="field"><div class="field-label">主要角色</div>
+          <textarea id="charMain" placeholder="例：女主角，30歲，鋼琴演奏家，眼神帶著未說出口的故事..."></textarea></div>
+        <div class="field"><div class="field-label">次要角色 <span class="opt">選填</span></div>
+          <textarea id="charSec" placeholder="例：一個只出現在回憶中的男人，臉始終模糊..." style="min-height:55px;"></textarea></div>
+        <div class="field"><div class="field-label">情緒弧線</div>
+          <textarea id="emoArc" placeholder="例：開始麻木壓抑 → 中段情緒爆發 → 結尾接受釋懷..." style="min-height:55px;"></textarea></div>
+        <button class="btn-gen" onclick="genStoryboard()" id="genSBBtn"><div class="shimmer"></div>🎬 生成分鏡腳本</button>
+      </div>
+      <div id="sbOut" style="display:none;">
+        <div class="card">
+          <div class="card-head"><div class="card-num">📽</div><div class="card-title">分鏡腳本</div></div>
+          <div class="out-box" id="outSB"></div>
+          <div class="out-actions" style="margin-top:10px;"><button class="btn-sm" onclick="cp('outSB')">📋 複製分鏡稿</button></div>
+        </div>
+      </div>
+    </div>
 
-    // ── Genre label map ──
-    const genreLabels = {
-      pop:'流行 Pop', rnb:'R&B / Soul', hiphop:'嘻哈 Hip-hop',
-      rock:'搖滾 Rock', ballad:'抒情 Ballad', edm:'EDM / Electronic',
-      folk:'民謠 Folk', jazz:'爵士 Jazz'
-    };
-    const langLabels = {
-      'zh-TW':'繁體中文', 'zh-CN':'簡體中文', 'en':'English',
-      'ja':'日本語', 'mixed':'中英混搭'
-    };
-    const structureLabels = {
-      'verse-chorus':'主歌 + 副歌',
-      'verse-prechorus-chorus':'主歌 + 預副歌 + 副歌',
-      'verse-chorus-bridge':'主歌 + 副歌 + 橋段',
-      'full':'完整結構'
-    };
+  </div>
+</main>
+</div>
 
-    // ── Main generate function ──
-    async function generate() {
-      const apiKey = document.getElementById('apiKey').value.trim();
-      if (!apiKey) { showError('請先輸入 Anthropic API Key！'); return; }
+<script>
+const GENRES=[
+  {id:'tango',name:'探戈 Tango',icon:'🌹',origin:'阿根廷，19世紀末',
+    instruments:[
+      {id:'bandoneon',name:'班多鈕手風琴 Bandoneón',desc:'探戈靈魂樂器，哀愁與激情的核心'},
+      {id:'violin',name:'小提琴 Violin',desc:'主旋律擔當，情緒張力豐富'},
+      {id:'contrabass',name:'低音提琴 Contrabass',desc:'穩固節奏骨架'},
+      {id:'piano',name:'鋼琴 Piano',desc:'和聲填充與節奏切分'},
+      {id:'nylon_guitar',name:'尼龍弦吉他 Nylon Guitar',desc:'溫暖而憂鬱的音色'},
+      {id:'latin_perc',name:'拉丁打擊 Latin Percussion',desc:'手鼓、響板、Hand Claps'}
+    ],
+    moods:[
+      {id:'melancholy',name:'哀愁與滄桑',desc:'帶有命運感的憂鬱，如夜晚街燈下的獨舞'},
+      {id:'passionate',name:'炙熱激情',desc:'肉體與情感的碰撞，壓抑中爆發的慾望'},
+      {id:'festive',name:'歡樂喜慶',desc:'早期探戈的輕快節慶氣息'},
+      {id:'nostalgic',name:'懷舊鄉愁',desc:'對故鄉、舊愛或逝去歲月的緬懷'},
+      {id:'dramatic',name:'戲劇張力',desc:'強烈的情節感，如舞台上的生死對決'},
+      {id:'noir',name:'黑色電影感',desc:'Film noir 氛圍，危險而性感的都市夜晚'}
+    ],
+    tempos:['慢板 Vals','標準 Tango','快板 Milonga'],
+    subgenres:['阿根廷探戈','新探戈 Nuevo Tango','舞廳探戈','拉丁 Noir Pop']
+  },
+  {id:'classical',name:'古典 Classical',icon:'🎼',origin:'歐洲，17-19世紀',
+    instruments:[
+      {id:'strings',name:'弦樂組 Strings',desc:'情感骨幹，從溫柔到史詩'},
+      {id:'piano_solo',name:'獨奏鋼琴',desc:'最完整的獨奏樂器'},
+      {id:'oboe',name:'雙簧管 Oboe',desc:'穿透性音色，田園氣質'},
+      {id:'horn',name:'法國號 French Horn',desc:'宏偉壯闊，史詩感'},
+      {id:'harpsichord',name:'大鍵琴 Harpsichord',desc:'巴洛克古風質感'},
+      {id:'choir_cl',name:'合唱團 Choir',desc:'從神聖到壯麗的情感'}
+    ],
+    moods:[
+      {id:'majestic',name:'宏偉莊嚴',desc:'如大教堂穹頂的壯麗感'},
+      {id:'lyrical',name:'如歌抒情',desc:'旋律主導，情感細膩'},
+      {id:'dramatic_cl',name:'戲劇衝突',desc:'貝多芬式的命運對抗'},
+      {id:'serene',name:'平靜沉思',desc:'巴赫式的內心平靜'},
+      {id:'playful_cl',name:'輕巧趣味',desc:'莫扎特式的優雅俏皮'}
+    ],
+    tempos:['慢板 Adagio','行板 Andante','小快板 Allegretto','快板 Allegro'],
+    subgenres:['巴洛克 Baroque','古典時期','浪漫時期 Romantic','印象派','現代古典']
+  },
+  {id:'jazz',name:'爵士 Jazz',icon:'🎷',origin:'美國紐奧良，20世紀初',
+    instruments:[
+      {id:'saxophone',name:'薩克斯風',desc:'爵士最具代表性的聲音'},
+      {id:'trumpet',name:'小號 Trumpet',desc:'明亮穿透，Bebop 的核心'},
+      {id:'upright_bass',name:'直立貝斯',desc:'撥奏製造彈性律動'},
+      {id:'jazz_drums',name:'爵士鼓組',desc:'刷弦到敲打，靈活多變'},
+      {id:'jazz_piano',name:'爵士鋼琴',desc:'和弦聲響豐富，即興空間大'},
+      {id:'vibraphone',name:'顫音琴 Vibraphone',desc:'閃爍金屬音色，夢境感'}
+    ],
+    moods:[
+      {id:'smoky',name:'煙霧午夜',desc:'昏暗燈光下的慵懶，城市的孤獨與性感'},
+      {id:'swing',name:'搖擺歡快',desc:'讓人想起舞的律動'},
+      {id:'blues_feel',name:'藍調憂愁',desc:'靈魂深處的哀愁'},
+      {id:'sophisticated',name:'都會精緻',desc:'Cool Jazz 的冷靜克制'},
+      {id:'experimental',name:'前衛探索',desc:'Free Jazz 的解構精神'}
+    ],
+    tempos:['Ballad 慢板','Medium Swing','Up Tempo','Bossa Nova','Shuffle'],
+    subgenres:['傳統爵士','Bebop','Cool Jazz','Fusion','Bossa Nova','Nu Jazz']
+  },
+  {id:'rnb',name:'R&B / Soul',icon:'🎤',origin:'美國，1940年代',
+    instruments:[
+      {id:'electric_bass',name:'電貝斯',desc:'groove 的靈魂所在'},
+      {id:'electric_guitar',name:'電吉他',desc:'funk 切音，律動質感'},
+      {id:'keys_organ',name:'電子琴/風琴',desc:'Hammond B3 的靈魂教會感'},
+      {id:'rnb_drums',name:'鼓組',desc:'二四拍強調的律動'},
+      {id:'horns_rnb',name:'銅管組',desc:'薩克斯+小號+長號'},
+      {id:'strings_rnb',name:'弦樂編排',desc:'增添浪漫或戲劇感'}
+    ],
+    moods:[
+      {id:'sensual',name:'感官慵懶',desc:'絲滑質感，肢體語言般的流動'},
+      {id:'empowering',name:'自我賦能',desc:'展現自信與力量'},
+      {id:'heartbreak_r',name:'心碎細膩',desc:'在旋律中哭泣'},
+      {id:'church_soul',name:'靈魂教會感',desc:'Gospel 根源的神聖感動'},
+      {id:'party_r',name:'派對歡樂',desc:'讓身體自然搖擺'}
+    ],
+    tempos:['Slow Jam','Mid Tempo','Uptempo Funk','Neo-Soul Groove'],
+    subgenres:['Classic Soul','Neo-Soul','Contemporary R&B','Funk','Gospel-Soul']
+  },
+  {id:'pop',name:'流行 Pop',icon:'✨',origin:'全球，1950年代至今',
+    instruments:[
+      {id:'synth',name:'合成器 Synth',desc:'從溫暖 pad 到尖銳 lead'},
+      {id:'pop_drums',name:'電子鼓組',desc:'808 kick，現代流行基石'},
+      {id:'acoustic_g',name:'木吉他',desc:'溫暖真實感，人情味'},
+      {id:'bass_synth',name:'合成貝斯',desc:'sub bass 到 funk bass'},
+      {id:'piano_pop',name:'鋼琴',desc:'情感表達的中堅'},
+      {id:'vocal_layers',name:'人聲疊加',desc:'多層和聲，豐厚感'}
+    ],
+    moods:[
+      {id:'uplifting',name:'振奮人心',desc:'Anthem 式的能量'},
+      {id:'melancholic_p',name:'甜蜜憂愁',desc:'Sad Pop，快樂旋律中藏著眼淚'},
+      {id:'dreamy_p',name:'夢幻飄渺',desc:'Dreamy Pop 的雲霧感'},
+      {id:'rebellious',name:'反叛青春',desc:'帶刺的能量'},
+      {id:'romantic_p',name:'浪漫甜蜜',desc:'愛情流行的經典'}
+    ],
+    tempos:['Slow Ballad','Mid Tempo','Uptempo Dance','EDM-Pop'],
+    subgenres:['Indie Pop','Synth-Pop','Dream Pop','Art Pop','K-Pop','J-Pop']
+  },
+  {id:'folk',name:'民謠 Folk',icon:'🪕',origin:'各地民間傳統',
+    instruments:[
+      {id:'acoustic_folk',name:'木吉他 Acoustic',desc:'民謠的靈魂樂器'},
+      {id:'banjo',name:'班鳩琴 Banjo',desc:'美式民謠特色'},
+      {id:'fiddle',name:'民謠琴 Fiddle',desc:'即興而充滿人情味'},
+      {id:'harmonica',name:'口琴',desc:'旅人的樂器，漂泊氣質'},
+      {id:'upright_folk',name:'直立貝斯',desc:'暖厚的低音支撐'},
+      {id:'perc_folk',name:'手鼓',desc:'簡單的節奏感'}
+    ],
+    moods:[
+      {id:'nostalgic_f',name:'懷鄉思念',desc:'想起故土的淡淡憂愁'},
+      {id:'storytelling',name:'說書人溫度',desc:'娓娓道來的人生況味'},
+      {id:'protest',name:'抗議覺醒',desc:'Bob Dylan 式的時代關懷'},
+      {id:'cozy',name:'溫暖陪伴',desc:'像壁爐旁的歌聲'},
+      {id:'wandering',name:'流浪自由',desc:'不羈的靈魂'}
+    ],
+    tempos:['緩慢抒情','中速述說','輕快跳躍','Waltz 圓舞'],
+    subgenres:['美式民謠','Celtic Folk','台灣民謠','Indie Folk','Singer-Songwriter']
+  }
+];
 
-      const lang = document.getElementById('lang').value;
-      const genre = document.getElementById('genre').value;
-      const structure = document.getElementById('structure').value;
-      const temp = parseFloat(document.getElementById('temperature').value);
-      const prompt = document.getElementById('prompt').value.trim();
-      const moods = getSelectedMoods();
+const VOCALS=[
+  {id:'operatic_tenor',name:'歌劇男高音',icon:'🎭',resonance:'頭腔共鳴為主，胸腔支撐',position:'高位置，面罩共鳴 Mask Resonance',quality:'宏亮穿透、光輝燦爛、英雄氣質',character:'莊嚴、力量感、史詩',vibe:'古典精英 / 戲劇英雄',tech:'Bel Canto，橫膈膜支撐，長音控制',refs:'帕華洛帝、多明哥',sunoTag:'operatic tenor, classical bel canto, powerful head resonance, heroic timbre, no vibrato excess'},
+  {id:'operatic_soprano',name:'歌劇女高音',icon:'👸',resonance:'頭腔高位共鳴，輕盈透明',position:'高位置輕發聲，明亮面罩',quality:'純淨高亢、水晶般透明、戲劇張力強',character:'優雅、神聖、情感豐沛',vibe:'古典女神 / 浪漫悲劇',tech:'義大利唱法，高音純淨，花腔技巧',refs:'Callas、Sumi Jo',sunoTag:'operatic soprano, lyric coloratura, crystalline high register, dramatic classical female'},
+  {id:'falsetto',name:'假聲 Falsetto',icon:'🌙',resonance:'頭腔輕薄共鳴，聲帶輕靠',position:'高位輕發聲，氣聲滲入',quality:'空靈飄渺、柔軟脆弱、性感質感',character:'細膩、敏感、渴望感',vibe:'憂鬱文青 / 感官慵懶',tech:'頭聲與胸聲 break 美感，大量氣息控制',refs:'Prince、The Weeknd',sunoTag:'falsetto, airy head voice, breathy vulnerability, sensual upper register'},
+  {id:'raspy',name:'沙啞搖滾嗓',icon:'🔥',resonance:'胸腔共鳴為主，咽腔加壓',position:'低位置壓迫，邊緣張力',quality:'粗獷有力、瑕疵美感、生命力強烈',character:'叛逆、真實、撕裂感',vibe:'頹廢搖滾 / 街頭浪人',tech:'Fry Scream、Distortion、邊緣張力',refs:'Janis Joplin、Tom Waits',sunoTag:'raspy rock vocal, gritty texture, raw edge, distorted grain, soulful roughness'},
+  {id:'crooner',name:'低沉磁性嗓',icon:'🥃',resonance:'胸腔深厚共鳴，鼻腔輔助',position:'低位置自然發聲，放鬆深沉',quality:'絲滑溫暖、如威士忌般醇厚',character:'成熟、世故、浪漫',vibe:'老派紳士 / 午夜酒吧',tech:'自然呼吸支撐，legato 連音',refs:'Sinatra、Nick Cave',sunoTag:'crooner, velvety baritone, smoky lounge vocal, warm resonance, vintage intimacy'},
+  {id:'breathy_indie',name:'氣聲文青嗓',icon:'🌿',resonance:'輕薄頭腔，大量氣息混入',position:'放鬆自然，不刻意推送',quality:'親密輕柔、像耳邊低語、脆弱真實',character:'內斂、詩意、孤獨感',vibe:'文藝青年 / 咖啡廳下午',tech:'intentional breathiness，minimal vibrato',refs:'Elliott Smith、Bon Iver',sunoTag:'breathy indie vocal, intimate whisper, soft folk delivery, fragile vulnerability'},
+  {id:'gospel',name:'靈魂爆發嗓',icon:'⚡',resonance:'胸腔+頭腔混合，全身振動',position:'中高位置，混聲技術',quality:'震撼人心、情感爆發',character:'熱情、奉獻、靈性感動',vibe:'靈魂救贖 / 情感宣洩',tech:'Melisma 花腔、runs、riffs',refs:'Whitney、Aretha、Beyoncé',sunoTag:'gospel powerhouse, melismatic runs, soul-shattering emotion, mixed belt, riffs and runs'},
+  {id:'sweet_tw',name:'台式甜美嗓',icon:'🌸',resonance:'前位共鳴，輕薄明亮',position:'自然前位發聲，清甜質感',quality:'甜美清亮、帶有台灣腔韻味',character:'甜蜜、青春、自然',vibe:'台灣流行 / 鄰家女孩',tech:'台語韻味，前口腔共鳴，輕柔氣息',refs:'鄧麗君、孫燕姿早期',sunoTag:'sweet Taiwanese female vocal, soft clear tone, gentle forward projection, natural Mandarin pop delivery, native Mandarin pronunciation'}
+];
 
-      // Show output card + loading
-      const outputCard = document.getElementById('output-card');
-      outputCard.classList.add('visible');
-      document.getElementById('lyricsDisplay').innerHTML = '<div class="loading-overlay active" id="loadingOverlay"><div class="spinner"></div><div class="loading-text">GENERATING LYRICS...</div></div>';
-      document.getElementById('genBtn').disabled = true;
-      hideError();
+const ROOMS=[
+  {id:'dry_studio',name:'錄音室乾聲',icon:'🎙️',rev:'極少殘響（RT60<0.2s）',char:'現代精準，後期完全可控',best:'現代流行、Hip-hop',sunoTag:'dry studio recording, close mic, no reverb, modern mix'},
+  {id:'concert_hall',name:'音樂廳',icon:'🏛️',rev:'豐富自然殘響（RT60 2-3s）',char:'壯闊史詩，空間感強',best:'古典、管弦樂、合唱',sunoTag:'concert hall acoustics, large natural reverb, orchestral space'},
+  {id:'opera_house',name:'歌劇院',icon:'🎪',rev:'中長殘響，人聲強化（RT60 1.5-2.5s）',char:'戲劇性、貴氣、宏偉',best:'歌劇、探戈、古典跨界',sunoTag:'opera house ambience, grand theatrical reverb, voice-enhancing acoustics'},
+  {id:'jazz_club',name:'爵士俱樂部',icon:'🕯️',rev:'短暫自然殘響（RT60 0.4-0.8s）',char:'親密真實，有溫度',best:'爵士、藍調、Soul',sunoTag:'intimate jazz club ambience, warm room acoustics, live feel'},
+  {id:'bathroom',name:'浴室迴聲',icon:'🚿',rev:'短密集反射（RT60 0.8-1.2s）',char:'粗獷有個性，Lo-fi 質感',best:'Indie Rock、Lo-fi',sunoTag:'bathroom reverb, tiled room echo, lo-fi indie acoustic'},
+  {id:'stadium',name:'演唱會現場',icon:'🎸',rev:'長殘響+環境噪音（RT60 3-5s）',char:'史詩現場感，集體共鳴',best:'搖滾、流行現場',sunoTag:'live stadium performance, massive reverb, concert hall echo, epic live feel'},
+  {id:'ballroom',name:'舞廳 Ballroom',icon:'💃',rev:'中等殘響，華麗空間感（RT60 1-2s）',char:'優雅性感，探戈首選',best:'探戈、Latin、爵士舞曲',sunoTag:'black ballroom ambience, elegant dance hall acoustics, smooth mid reverb'}
+];
 
-      // Update tags
-      document.getElementById('tagLang').textContent = langLabels[lang];
-      document.getElementById('tagGenre').textContent = genreLabels[genre];
-      document.getElementById('tagMood').textContent = moods.length ? moods.join(' ') : '無指定情緒';
+const STRUCTS=[
+  {id:'verse_chorus',name:'主歌+副歌',parts:'Verse → Chorus'},
+  {id:'standard',name:'標準流行',parts:'Verse → Pre-Chorus → Chorus → Bridge → Outro'},
+  {id:'aba',name:'ABA三段式',parts:'A → B → A'},
+  {id:'tango_struct',name:'探戈完整',parts:'Intro → Verse → Pre-Chorus → Chorus → Post-Chorus → Verse2 → Chorus → Instrumental Break → Dance Break → Bridge → Build → Final Chorus → Outro'},
+  {id:'custom',name:'自訂',parts:'自行定義'}
+];
 
-      // Build prompt
-      const systemPrompt = `你是一位頂尖的詞曲創作人，擅長撰寫各種風格的歌詞。
-你的歌詞富有詩意、情感真實、意象鮮明，並且符合音樂的節奏感與韻腳。
-請根據使用者的需求生成完整歌詞，使用繁體中文標示段落名稱（如【主歌一】【副歌】【橋段】）。`;
+const S={genres:new Set(),gInst:{},gMood:{},gTempo:{},gSub:{},struct:'standard',vocals:new Set(),room:null,mvIdx:null,result:{}};
 
-      const moodStr = moods.length ? `情緒氛圍：${moods.join('、')}` : '';
-      const themeStr = prompt ? `主題內容：${prompt}` : '（無特定主題，請自由發揮）';
+document.addEventListener('DOMContentLoaded',()=>{
+  renderGenres();renderStructs();renderVocals();renderRooms();
+});
 
-      const userPrompt = `請幫我創作一首歌詞，條件如下：
-- 語言：${langLabels[lang]}
-- 曲風：${genreLabels[genre]}
-- 段落結構：${structureLabels[structure]}
-${moodStr}
-- ${themeStr}
+function renderGenres(){
+  document.getElementById('genreGrid').innerHTML=GENRES.map(g=>`<div class="genre-card" id="gc-${g.id}" onclick="toggleGenre('${g.id}')"><div class="g-icon">${g.icon}</div><div class="g-name">${g.name}</div></div>`).join('');
+}
+function toggleGenre(id){
+  const el=document.getElementById('gc-'+id);
+  if(S.genres.has(id)){S.genres.delete(id);el.classList.remove('on');}
+  else{S.genres.add(id);el.classList.add('on');if(!S.gInst[id])S.gInst[id]=new Set();if(!S.gMood[id])S.gMood[id]=new Set();}
+  renderGenreDetails();
+  document.getElementById('mixCard').style.display=S.genres.size>1?'block':'none';
+}
+function renderGenreDetails(){
+  const c=document.getElementById('genreDetails');c.innerHTML='';
+  S.genres.forEach(id=>{
+    const g=GENRES.find(x=>x.id===id);if(!g)return;
+    const d=document.createElement('div');d.className='card';
+    d.innerHTML=`<div class="card-head"><div class="g-icon" style="font-size:18px;">${g.icon}</div><div><div class="card-title">${g.name} — 細節設定</div><div style="font-size:10px;color:var(--text-muted);">${g.origin}</div></div></div>
+    <div class="two-col">
+      <div><div class="field-label" style="margin-bottom:8px;">樂器選擇（可多選）</div><div class="check-list">${g.instruments.map(i=>`<div class="check-item" onclick="togInst('${id}','${i.id}',this)"><div class="check-box"></div><div><div class="check-name">${i.name}</div><div class="check-desc">${i.desc}</div></div></div>`).join('')}</div></div>
+      <div><div class="field-label" style="margin-bottom:8px;">氛圍情緒（可多選）</div><div class="check-list">${g.moods.map(m=>`<div class="check-item" onclick="togMood('${id}','${m.id}',this)"><div class="check-box"></div><div><div class="check-name">${m.name}</div><div class="check-desc">${m.desc}</div></div></div>`).join('')}</div>
+      <div style="margin-top:12px;"><div class="field-label">速度 Tempo</div><div class="pills">${g.tempos.map(t=>`<div class="pill" onclick="selTempo('${id}','${t}',this)">${t}</div>`).join('')}</div></div>
+      <div style="margin-top:10px;"><div class="field-label">子類型</div><div class="pills">${g.subgenres.map(s=>`<div class="pill" onclick="selSub('${id}','${s}',this)">${s}</div>`).join('')}</div></div></div>
+    </div>`;
+    c.appendChild(d);
+  });
+}
+function togInst(gid,iid,el){const s=S.gInst[gid]||(S.gInst[gid]=new Set());s.has(iid)?(s.delete(iid),el.classList.remove('on'),el.querySelector('.check-box').textContent=''):(s.add(iid),el.classList.add('on'),el.querySelector('.check-box').textContent='✓');}
+function togMood(gid,mid,el){const s=S.gMood[gid]||(S.gMood[gid]=new Set());s.has(mid)?(s.delete(mid),el.classList.remove('on'),el.querySelector('.check-box').textContent=''):(s.add(mid),el.classList.add('on'),el.querySelector('.check-box').textContent='✓');}
+function selTempo(gid,t,el){el.closest('.pills').querySelectorAll('.pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');S.gTempo[gid]=t;}
+function selSub(gid,s,el){el.closest('.pills').querySelectorAll('.pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');S.gSub[gid]=s;}
+function renderStructs(){document.getElementById('structPills').innerHTML=STRUCTS.map((s,i)=>`<div class="pill ${i===1?'on':''}" onclick="selStruct('${s.id}',this)" title="${s.parts}">${s.name}</div>`).join('');}
+function selStruct(id,el){document.querySelectorAll('#structPills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');S.struct=id;document.getElementById('customStructWrap').style.display=id==='custom'?'block':'none';}
+function renderVocals(){document.getElementById('vocalGrid').innerHTML=VOCALS.map(v=>`<div class="v-card" id="vc-${v.id}" onclick="togVocal('${v.id}',this)"><div class="v-icon">${v.icon}</div><div class="v-name">${v.name}</div><div class="v-vibe">${v.vibe}</div></div>`).join('');}
+function togVocal(id,el){if(S.vocals.has(id)){S.vocals.delete(id);el.classList.remove('on');}else{S.vocals.add(id);el.classList.add('on');}renderVocalDetails();}
+function renderVocalDetails(){
+  const c=document.getElementById('vocalDetails');c.innerHTML='';
+  S.vocals.forEach(id=>{
+    const v=VOCALS.find(x=>x.id===id);if(!v)return;
+    const d=document.createElement('div');d.className='detail-panel';
+    d.innerHTML=`<div style="font-weight:600;font-size:13px;color:var(--gold);margin-bottom:12px;">${v.icon} ${v.name}</div>
+    <div class="detail-grid">
+      <div class="spec"><div class="spec-k">共鳴位置</div><div class="spec-v">${v.resonance}</div></div>
+      <div class="spec"><div class="spec-k">發聲位置</div><div class="spec-v">${v.position}</div></div>
+      <div class="spec"><div class="spec-k">音色特質</div><div class="spec-v">${v.quality}</div></div>
+      <div class="spec"><div class="spec-k">人聲氣質</div><div class="spec-v">${v.character}</div></div>
+      <div class="spec"><div class="spec-k">文化氛圍</div><div class="spec-v">${v.vibe}</div></div>
+      <div class="spec"><div class="spec-k">演唱技術</div><div class="spec-v">${v.tech}</div></div>
+      <div class="spec" style="grid-column:1/-1;"><div class="spec-k">Suno 標籤</div><div class="spec-v" style="font-family:var(--font-mono);font-size:10px;">${v.sunoTag}</div></div>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">參考：${v.refs}</div>`;
+    c.appendChild(d);
+  });
+}
+function renderRooms(){document.getElementById('roomGrid').innerHTML=ROOMS.map(r=>`<div class="r-card" id="rc-${r.id}" onclick="selRoom('${r.id}',this)"><div class="r-icon">${r.icon}</div><div class="r-name">${r.name}</div><div class="r-rev">${r.rev}</div></div>`).join('');}
+function selRoom(id,el){
+  document.querySelectorAll('.r-card').forEach(c=>c.classList.remove('on'));el.classList.add('on');S.room=id;
+  const r=ROOMS.find(x=>x.id===id);
+  document.getElementById('roomDetail').innerHTML=`<div class="detail-panel"><div class="detail-grid">
+    <div class="spec"><div class="spec-k">殘響特性</div><div class="spec-v">${r.rev}</div></div>
+    <div class="spec"><div class="spec-k">聲音性格</div><div class="spec-v">${r.char}</div></div>
+    <div class="spec"><div class="spec-k">最適合</div><div class="spec-v">${r.best}</div></div>
+    <div class="spec" style="grid-column:1/-1;"><div class="spec-k">Suno 標籤</div><div class="spec-v" style="font-family:var(--font-mono);font-size:10px;">${r.sunoTag}</div></div>
+  </div></div>`;
+}
+function selPill(el,gid){document.querySelectorAll('#'+gid+' .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');}
+function tog(fid){const f=document.getElementById(fid);f.style.display=f.style.display==='none'?'block':'none';}
 
-請用【段落名稱】標示每個段落，並讓歌詞具有押韻感和流暢的節奏。`;
+const stageInfo={1:['曲風設定','選擇音樂風格基底'],2:['製作設定','樂器、人聲與空間感'],3:['歌詞設定','主題、氛圍與生成選項'],result:['生成結果','Suno 格式歌曲'],mv:['MV 分鏡','視覺化你的音樂']};
+function goStage(s){
+  const navEl=document.querySelector('[data-s="'+s+'"]');
+  if(navEl&&navEl.classList.contains('disabled'))return;
+  ['s1','s2','s3','sResult','sMV'].forEach(id=>document.getElementById(id).style.display='none');
+  const map={1:'s1',2:'s2',3:'s3',result:'sResult',mv:'sMV'};
+  if(map[s])document.getElementById(map[s]).style.display='block';
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  if(navEl){navEl.classList.remove('disabled');navEl.classList.add('active');}
+  const info=stageInfo[s]||['',''];
+  document.getElementById('tbTitle').textContent=info[0];
+  document.getElementById('tbSub').textContent=info[1];
+  [1,2,3].forEach(i=>{const p=document.getElementById('p'+i);if(!p)return;p.className='step-pip';if(typeof s==='number'&&i<s)p.classList.add('done');else if(i==s)p.classList.add('active');});
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
-      try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 1500,
-            temperature: temp,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }]
-          })
-        });
+function checkKey(){
+  const v=document.getElementById('apiKey').value.trim();
+  const dot=document.getElementById('apiDot');const lbl=document.getElementById('apiLabel');
+  if(v.startsWith('sk-ant-')&&v.length>20){dot.className='api-dot ok';lbl.textContent='API Key 已設定';}
+  else if(v.length>0){dot.className='api-dot err';lbl.textContent='格式不正確';}
+  else{dot.className='api-dot';lbl.textContent='未設定 API Key';}
+}
+function toggleEye(){const i=document.getElementById('apiKey');i.type=i.type==='password'?'text':'password';}
 
-        const data = await response.json();
+function buildPrompt(){
+  const genreLines=[...S.genres].map(id=>{
+    const g=GENRES.find(x=>x.id===id);
+    const inst=[...(S.gInst[id]||[])].map(i=>g.instruments.find(x=>x.id===i)?.name).filter(Boolean);
+    const mood=[...(S.gMood[id]||[])].map(m=>g.moods.find(x=>x.id===m)?.name).filter(Boolean);
+    return '【'+g.name+'】\n  樂器：'+(inst.join('、')||'未指定')+'\n  氛圍：'+(mood.join('、')||'未指定')+'\n  速度：'+(S.gTempo[id]||'未指定')+'\n  子類型：'+(S.gSub[id]||'未指定');
+  }).join('\n');
+  const vocalNames=[...S.vocals].map(id=>VOCALS.find(v=>v.id===id)?.name).filter(Boolean);
+  const vocalSunoTags=[...S.vocals].map(id=>VOCALS.find(v=>v.id===id)?.sunoTag).filter(Boolean);
+  const vocalDetails=[...S.vocals].map(id=>{const v=VOCALS.find(x=>x.id===id);return v?v.name+'：共鳴='+v.resonance+'，音色='+v.quality+'，技術='+v.tech:'';}).filter(Boolean);
+  const room=ROOMS.find(r=>r.id===S.room);
+  const struct=STRUCTS.find(s=>s.id===S.struct);
+  const lang=document.querySelector('#langPills .pill.on')?.dataset.v||'繁體中文';
+  const flags={style:document.getElementById('genStyle').checked,vocalTag:document.getElementById('genVocalTag').checked,arr:document.getElementById('genArr').checked,trans:document.getElementById('genTrans').checked,cover:document.getElementById('genCover').checked,mv:document.getElementById('genMV').checked};
 
-        if (!response.ok) {
-          throw new Error(data.error?.message || `API 錯誤 ${response.status}`);
-        }
+  const prompt=`你是一位頂尖的音樂製作人、詞曲創作人，專精 Suno AI 音樂生成平台的提示詞撰寫。你熟知 Suno 的 Style Prompt 格式以及歌詞中的元標籤（Meta Tags）系統。
 
-        const lyrics = data.content?.[0]?.text || '';
-        renderLyrics(lyrics);
+以下是一個你必須參考的 Suno 格式範例（注意其格式規則）：
 
-      } catch (err) {
-        document.getElementById('lyricsDisplay').innerHTML = '';
-        showError('❌ ' + (err.message || '發生未知錯誤，請確認 API Key 是否正確'));
-      } finally {
-        document.getElementById('genBtn').disabled = false;
-      }
-    }
+Style: Mandarin Latin noir pop, cinematic tango pop, sultry elegant female vocal, native Taiwan Mandarin pronunciation, acoustic nylon guitar, bandoneon-like accordion, upright bass, dramatic strings, Latin percussion, sharp hand claps, soft smoky piano, sensual dance groove, minor key, 108 BPM, black-red ballroom atmosphere, elegant breakup song, catchy chorus, strong rhythmic phrasing, instrumental solo section with virtuosic guitar and accordion interplay, cinematic final chorus, polished pop mix, warm vocal intimacy, no EDM drop, no rap, no English accent, no excessive vibrato, no childish voice
 
-    function renderLyrics(text) {
-      // Animate in line by line
-      const display = document.getElementById('lyricsDisplay');
-      display.innerHTML = '';
+[歌名]
+[Lead vocal: sweet Taiwanese Hokkien female vocal, soft cha-cha pop delivery, gentle smiling tone, bittersweet but playful emotion, natural forward projection, clear front-mouth diction, slight nasal-forward resonance, vocal range focus G3–D5, do not exceed D5, narrow comfortable melody, no wide leaps, no sustained high notes]
+[Voice exclusions: no belting, no powerful mixed belt, no piercing highs, no explosive climax, no heavy crying tone, no childish idol sweetness, no over-autotune]
+[Intro – distant hand claps, nylon guitar, soft bandoneon, smoky ballroom ambience]
+[Verse 1 – intimate, rhythmic, low voice]
+（歌詞）
+[Pre-Chorus – tension rising, strings swell]
+（歌詞）
+[Chorus – catchy, wider rhythm]
+（歌詞）
+[Instrumental Break – virtuosic solo, no vocals]
+[Bridge – half-time, intimate]
+（歌詞）
+[Final Chorus – cinematic, emotional]
+（歌詞）
+[Outro – slowing down, fade out]
 
-      const lines = text.split('\n');
-      let html = '';
-      for (const line of lines) {
-        if (line.match(/^【.+】$/)) {
-          html += `\n<span class="section-tag">${line}</span>\n`;
-        } else {
-          html += line + '\n';
-        }
-      }
-      display.innerHTML = html;
+請根據以下設定，生成一首完整的 Suno 音樂作品。
 
-      // Scroll into view
-      display.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+═══ 曲風設定 ═══
+${genreLines}
+${S.genres.size>1?'混搭：'+(document.getElementById('mixDesc').value||'自然融合以上風格'):''}
 
-    function showError(msg) {
-      const el = document.getElementById('errorMsg');
-      el.textContent = msg;
-      el.classList.add('visible');
-    }
-    function hideError() {
-      document.getElementById('errorMsg').classList.remove('visible');
-    }
-  </script>
+═══ 製作設定 ═══
+段落結構：${struct?.name}（${S.struct==='custom'?document.getElementById('customStruct').value:struct?.parts}）
+純音樂段數：${document.getElementById('instrCount').value} 段
+BPM：${document.getElementById('bpm').value||'請依風格判斷'}
+口白：${document.getElementById('hasNarr').checked?'是，'+(document.getElementById('narrDesc').value||'請自由設計'):'無'}
+參考旋律：${document.getElementById('hasRef').checked?(document.getElementById('refSong').value||'未指定'):'無'}
+人聲風格：${vocalNames.join('、')||'未指定'}
+人聲技術：${vocalDetails.join('；')||'未指定'}
+人聲 Suno 標籤參考：${vocalSunoTags.join(', ')||'未指定'}
+排除人聲特質：${document.getElementById('voiceExclusions').value||'請依風格判斷'}
+錄音空間：${room?(room.name+'（'+room.char+'，Suno tag: '+room.sunoTag+'）'):'未指定'}
+
+═══ 歌詞設定 ═══
+語言：${lang}
+歌名：${document.getElementById('songTitle').value||'請自行創作'}
+主題：${document.getElementById('theme').value||'自由發揮'}
+氛圍：${document.getElementById('vibe').value||'未指定'}
+Hook：${document.getElementById('hook').value||'自由創作'}
+意象詞彙：${document.getElementById('imagery').value||'未指定'}
+背景合唱：${document.getElementById('hasChorus').checked?'是':'否'}
+Call & Response：${document.getElementById('hasCR').checked?'是':'否'}
+和聲設計：${document.getElementById('harmonyDesc').value||'未指定'}
+補充指示：${document.getElementById('extra').value||'無'}
+
+═══ 請輸出以下內容 ═══
+
+【一、Suno Style Prompt】
+（純英文，格式如範例，包含：曲風、樂器、人聲特質、BPM、氛圍、情緒、製作風格、no/exclusion 排除項目）
+
+【二、完整歌詞（含 Suno 元標籤）】
+嚴格遵守以下格式：
+第一行：[歌名]
+${flags.vocalTag?'第二行：[Lead vocal: 詳細描述音色、共鳴位置、發聲特徵、氣質、音域範圍、技術要點，參考上方設定]\n第三行：[Voice exclusions: no X, no Y, no Z...]':''}
+之後每段：[段落名稱 – 當段簡短製作指示]
+歌詞本體
+純音樂段：只有標籤，無歌詞
+整體要有押韻感、節奏感、情感真實、意象鮮明
+
+${flags.arr?'【三、編排說明】\n各段落的樂器分工、動態變化、製作建議':''}
+${flags.trans?'【四、對照翻譯】\n歌詞中英對照，必要時加語義說明':''}
+${flags.cover?'【五、封面設計提示詞】\n適合 Midjourney/SD 的英文提示詞，50-80 words，包含視覺風格、色調、構圖、情緒':''}
+${flags.mv?'【六、三個 MV 腳本方向】\n每個包含：標題（5字以內）、視覺風格、核心概念（80字）、主要場景 2-3 個':''}`;
+
+  return{prompt,flags};
+}
+
+function parseOutput(text,flags){
+  const get=(label)=>{const r=new RegExp('【'+label+'[^】]*】([\\s\\S]*?)(?=【|$)','i');const m=text.match(r);return m?m[1].trim():'';};
+  return{style:get('一')||get('Suno Style'),lyrics:get('二')||get('完整歌詞'),arr:flags.arr?(get('三')||get('編排')):'',trans:flags.trans?(get('四')||get('對照')):'',cover:flags.cover?(get('五')||get('封面')):'',mv:flags.mv?(get('六')||get('MV')):''};
+}
+function buildSunoFull(parsed){
+  let out='';
+  if(parsed.style)out+='Style:\n'+parsed.style+'\n\n';
+  if(parsed.lyrics)out+=parsed.lyrics;
+  return out.trim();
+}
+
+async function generate(){
+  const key=document.getElementById('apiKey').value.trim();
+  if(!key||!key.startsWith('sk-ant-')){showErr('請先在左側欄輸入正確的 Anthropic API Key');return;}
+  if(S.genres.size===0){showErr('請先在 Stage 1 選擇至少一種曲風');return;}
+  hideErr();showLoad('正在召喚音樂靈感...');document.getElementById('genBtn').disabled=true;
+  const{prompt,flags}=buildPrompt();
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-5-20251001',max_tokens:4096,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error?.message||'API 錯誤 '+res.status);
+    const full=data.content?.[0]?.text||'';
+    const parsed=parseOutput(full,flags);S.result=parsed;
+    document.getElementById('outSuno').textContent=buildSunoFull(parsed);
+    document.getElementById('outLyrics').textContent=parsed.lyrics||'（未生成）';
+    document.getElementById('outStyle').textContent=parsed.style||'（未生成）';
+    document.getElementById('outArr').textContent=parsed.arr||'（未生成）';
+    document.getElementById('outTrans').textContent=parsed.trans||'（未生成）';
+    document.getElementById('outCover').textContent=parsed.cover||'（未生成）';
+    document.getElementById('tabStyle').style.display=flags.style?'block':'none';
+    document.getElementById('tabArr').style.display=flags.arr?'block':'none';
+    document.getElementById('tabTrans').style.display=flags.trans?'block':'none';
+    document.getElementById('tabCover').style.display=flags.cover?'block':'none';
+    if(flags.mv&&parsed.mv){document.getElementById('mvSection').style.display='block';renderMVScripts(parsed.mv);}
+    else document.getElementById('mvSection').style.display='none';
+    document.querySelector('[data-s="result"]').classList.remove('disabled');
+    goStage('result');
+  }catch(e){showErr('❌ '+(e.message||'發生未知錯誤'));}
+  finally{hideLoad();document.getElementById('genBtn').disabled=false;}
+}
+
+function renderMVScripts(mvText){
+  const blocks=mvText.split(/(?:方向|腳本)[一二三123]|\n\d[\.、]/m).filter(b=>b.trim()).slice(0,3);
+  const scripts=blocks.length?blocks.map((b,i)=>{const lines=b.trim().split('\n').filter(l=>l.trim());return{title:lines[0]?.replace(/[*#\-：:「」]/g,'').trim()||'方向 '+(i+1),desc:lines.slice(1).join('\n').trim()};}): [{title:'MV 腳本',desc:mvText}];
+  document.getElementById('mvList').innerHTML=scripts.map((s,i)=>`<div class="mv-card" onclick="selMV(${i},this,'${s.title.replace(/'/g,"\\'")}')"><div class="mv-card-head"><div class="mv-num">${i+1}</div><div class="mv-title">${s.title}</div></div><div class="mv-desc">${s.desc.replace(/\n/g,'<br>')}</div></div>`).join('');
+}
+function selMV(idx,el,title){document.querySelectorAll('.mv-card').forEach(c=>c.classList.remove('on'));el.classList.add('on');S.mvIdx=idx;document.getElementById('mvCardTitle').textContent=title;document.getElementById('btnMV').disabled=false;}
+function goMV(){document.querySelector('[data-s="mv"]').classList.remove('disabled');goStage('mv');}
+
+async function genStoryboard(){
+  const key=document.getElementById('apiKey').value.trim();if(!key){alert('請設定 API Key');return;}
+  showLoad('正在設計分鏡腳本...');document.getElementById('genSBBtn').disabled=true;
+  const p=`你是一位專業的 MV 導演兼分鏡師。根據以下資料生成詳細 MV 分鏡腳本：\n\n歌詞：\n${S.result.lyrics||''}\n\n主角：${document.getElementById('charMain').value||'請自由設計'}\n次要角色：${document.getElementById('charSec').value||'無'}\n情緒弧線：${document.getElementById('emoArc').value||'請自由設計'}\n\n請生成 8-12 個分鏡，每個包含：分鏡編號與對應段落、畫面描述（構圖、景別、鏡頭運動）、情緒與燈光、導演備注。`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-5-20251001',max_tokens:2500,messages:[{role:'user',content:p}]})});
+    const data=await res.json();if(!res.ok)throw new Error(data.error?.message);
+    document.getElementById('outSB').textContent=data.content?.[0]?.text||'';
+    document.getElementById('sbOut').style.display='block';
+  }catch(e){alert('❌ '+e.message);}
+  finally{hideLoad();document.getElementById('genSBBtn').disabled=false;}
+}
+
+function switchTab(el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));el.classList.add('active');document.getElementById('panel-'+el.dataset.tab).classList.add('active');}
+function cp(id){navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{const t=document.createElement('div');t.textContent='✅ 已複製！';t.style.cssText='position:fixed;bottom:22px;right:22px;background:var(--gold);color:#000;padding:9px 16px;border-radius:7px;font-size:12px;z-index:999;font-family:var(--font-mono);';document.body.appendChild(t);setTimeout(()=>t.remove(),2000);});}
+function showLoad(msg){document.getElementById('loadingMsg').textContent=msg;document.getElementById('loading').classList.add('show');}
+function hideLoad(){document.getElementById('loading').classList.remove('show');}
+function showErr(msg){const e=document.getElementById('errBar');e.textContent=msg;e.classList.add('show');}
+function hideErr(){document.getElementById('errBar').classList.remove('show');}
+</script>
 </body>
 </html>
