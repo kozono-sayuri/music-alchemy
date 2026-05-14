@@ -618,7 +618,7 @@ function tog(fid){const f=document.getElementById(fid);f.style.display=f.style.d
 const stageInfo={1:['曲風設定','選擇音樂風格基底'],2:['製作設定','樂器、人聲與空間感'],3:['歌詞設定','主題、氛圍與生成選項'],result:['生成結果','Suno 格式歌曲'],mv:['MV 分鏡','視覺化你的音樂']};
 function goStage(s){
   const navEl=document.querySelector('[data-s="'+s+'"]');
-  if(navEl&&navEl.classList.contains('disabled'))return;
+  
   ['s1','s2','s3','sResult','sMV'].forEach(id=>document.getElementById(id).style.display='none');
   const map={1:'s1',2:'s2',3:'s3',result:'sResult',mv:'sMV'};
   if(map[s])document.getElementById(map[s]).style.display='block';
